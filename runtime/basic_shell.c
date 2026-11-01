@@ -40,6 +40,11 @@
 #  include <sys/wait.h>
 #  include <sys/ioctl.h>
 #  include <sys/time.h>
+#else
+#  include <windows.h>
+#  include <conio.h>
+#  define popen  _popen
+#  define pclose _pclose
 #endif
 
 #include "basic_runtime.h"
@@ -138,8 +143,13 @@ void bs_shell(const BString *cmd)
 
     if (!cmd || cmd->len == 0) {
         /* Spawn an interactive shell */
+#if defined(_WIN32) || defined(_WIN64)
+        const char *sh = getenv("COMSPEC");
+        if (!sh || sh[0] == '\0') sh = "cmd.exe";
+#else
         const char *sh = getenv("SHELL");
         if (!sh || sh[0] == '\0') sh = "/bin/sh";
+#endif
         rc = system(sh);
     } else {
         /* cmd->data is always NUL-terminated by BString invariant */
@@ -450,8 +460,30 @@ void bs_inkey(BString *dst)
             }
         }
     }
+#else
+    /* Native Windows Console: use _kbhit() and _getch() */
+    if (_kbhit()) {
+        int ch = _getch();
+        if (ch == 0 || ch == 0xE0) {
+            /* Extended key: second byte is already the PC/QuickBASIC scan code */
+            int sc = _getch();
+            free(dst->data);
+            dst->data    = (char *)malloc(3);
+            if (!dst->data) { dst->len = 0; dst->cap = 0; return; }
+            dst->data[0] = '\0';
+            dst->data[1] = (char)sc;
+            dst->data[2] = '\0';
+            dst->len     = 2;
+            dst->cap     = 3;
+        } else {
+            char tmp[2];
+            if (ch == '\n') ch = '\r';
+            tmp[0] = (char)ch;
+            tmp[1] = '\0';
+            bs_string_assign_cstr(dst, tmp);
+        }
+    }
 #endif
-    /* On Windows (authoring machine) INKEY$ always returns "" */
 }
 
 /*
@@ -472,7 +504,15 @@ BString bs_inkey_tmp(void)
 int bs_term_rows(void)
 {
     const char *env;
-#if !defined(_WIN32) && !defined(_WIN64) && defined(TIOCGWINSZ)
+#if defined(_WIN32) || defined(_WIN64)
+    {
+        CONSOLE_SCREEN_BUFFER_INFO csbi;
+        if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi)) {
+            int rows = (int)(csbi.srWindow.Bottom - csbi.srWindow.Top + 1);
+            if (rows > 0) return rows;
+        }
+    }
+#elif defined(TIOCGWINSZ)
     struct winsize ws;
     memset(&ws, 0, sizeof(ws));
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_row > 0)
@@ -491,7 +531,15 @@ int bs_term_rows(void)
 int bs_term_cols(void)
 {
     const char *env;
-#if !defined(_WIN32) && !defined(_WIN64) && defined(TIOCGWINSZ)
+#if defined(_WIN32) || defined(_WIN64)
+    {
+        CONSOLE_SCREEN_BUFFER_INFO csbi;
+        if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi)) {
+            int cols = (int)(csbi.srWindow.Right - csbi.srWindow.Left + 1);
+            if (cols > 0) return cols;
+        }
+    }
+#elif defined(TIOCGWINSZ)
     struct winsize ws;
     memset(&ws, 0, sizeof(ws));
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0)

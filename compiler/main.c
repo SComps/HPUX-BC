@@ -228,11 +228,16 @@ static void get_runtime_dir(const char *argv0, char *buf, size_t buflen)
         return;
     }
 
-    /* Invoked via PATH (no slash in argv0): check if ./libbasic.a exists
-     * in current working directory (e.g. during build/test), otherwise
+    /* Invoked via PATH (no slash in argv0): check if ./libbasic.a (or basic.lib)
+     * exists in current working directory (e.g. during build/test), otherwise
      * fall back to compiled-in BCC_PREFIX/bin. */
     {
+#if defined(_WIN32) || defined(_WIN64)
+        FILE *f = fopen("basic.lib", "rb");
+        if (!f) f = fopen("libbasic.a", "rb");
+#else
         FILE *f = fopen("libbasic.a", "rb");
+#endif
         if (f) {
             fclose(f);
             strncpy(buf, ".", buflen - 1);
@@ -250,11 +255,11 @@ static void get_runtime_dir(const char *argv0, char *buf, size_t buflen)
 }
 
 /* ------------------------------------------------------------------ */
-/* Invoke gcc to compile the emitted C file                            */
+/* Invoke C compiler to compile the emitted C file                     */
 /* ------------------------------------------------------------------ */
 
 /*
- * Run:  gcc -o OUTNAME CFILE -I RTDIR -L RTDIR -lbasic -lm [extra_i] [opt]
+ * Run gcc (POSIX) or cl.exe (Windows MSVC) to compile CFILE into OUTNAME.
  *
  * Returns 0 on success, non-zero on failure.
  */
@@ -266,10 +271,6 @@ static int invoke_gcc(
         const char *extra_i[],  /* array of -I paths, NULL-terminated */
         int         verbose)
 {
-    /*
-     * Build the command in a fixed-size buffer.  On HP-UX with typical
-     * short path names this is ample; adjust if needed.
-     */
     char cmd[4096];
     int  pos = 0;
     int  i;
@@ -283,6 +284,62 @@ static int invoke_gcc(
             pos += (int)_n; \
         } \
     } while (0)
+
+#if defined(_WIN32) || defined(_WIN64)
+    {
+        const char *bcc_cc = getenv("BCC_CC");
+        if (!bcc_cc || strstr(bcc_cc, "gcc") == NULL) {
+            /* MSVC cl.exe mode */
+            char obj_file[256];
+            APPEND("cl /nologo /W0 /TC /D_CRT_SECURE_NO_WARNINGS ");
+            if (strcmp(opt_flag, "-O0") == 0)
+                APPEND("/Od ");
+            else
+                APPEND("/O2 ");
+            APPEND("/Fe\"");
+            APPEND(outname);
+            APPEND("\" \"");
+            APPEND(cfile);
+            APPEND("\" /I\"");
+            APPEND(rtdir);
+            APPEND("\" /I\"");
+            APPEND(rtdir);
+            APPEND("\\runtime\" /I\"");
+            APPEND(rtdir);
+            APPEND("\\..\\include\"");
+            if (extra_i) {
+                for (i = 0; extra_i[i] != NULL; i++) {
+                    APPEND(" /I\"");
+                    APPEND(extra_i[i]);
+                    APPEND("\"");
+                }
+            }
+            APPEND(" /link /LIBPATH:\"");
+            APPEND(rtdir);
+            APPEND("\" /LIBPATH:\"");
+            APPEND(rtdir);
+            APPEND("\\..\\lib\" basic.lib");
+            if (!verbose)
+                APPEND(" >NUL");
+            cmd[pos] = '\0';
+
+            if (verbose)
+                fprintf(stderr, "bcc: invoking: %s\n", cmd);
+
+            rc = system(cmd);
+
+            /* Clean up intermediate .obj left in current directory by cl.exe */
+            my_basename(cfile, obj_file, sizeof(obj_file));
+            strip_extension(obj_file);
+            strncat(obj_file, ".obj", sizeof(obj_file) - strlen(obj_file) - 1);
+            remove(obj_file);
+
+            if (rc != 0)
+                fprintf(stderr, "bcc: cl failed (exit %d)\n", rc);
+            return rc;
+        }
+    }
+#endif
 
     APPEND("gcc ");
     APPEND(opt_flag);
@@ -327,17 +384,9 @@ static int invoke_gcc(
 /* Generate a temp file name for the emitted C                         */
 /* ------------------------------------------------------------------ */
 
-/*
- * Write a temp file path into BUF.  Uses a simple counter; /tmp is
- * writable on all UNIX targets.
- */
-/*
- * Portable getpid substitute — we just use a compile-time trick.
- * On POSIX systems getpid() is available; on the authoring (Windows)
- * machine this file is never compiled, so the declaration is harmless.
- */
 #if defined(_WIN32) || defined(_WIN64)
-static int getpid_safe(void) { return 1; }
+#include <process.h>
+static int getpid_safe(void) { return (int)_getpid(); }
 #else
 #include <unistd.h>
 static int getpid_safe(void) { return (int)getpid(); }
@@ -347,9 +396,18 @@ static void make_tmp_path(char *buf, size_t buflen)
 {
     static int counter = 0;
     counter++;
-    /* C89: use sprintf; buf is 512 bytes, path cannot overflow */
     (void)buflen;
+#if defined(_WIN32) || defined(_WIN64)
+    {
+        const char *tmpdir = getenv("TEMP");
+        if (!tmpdir || !tmpdir[0]) tmpdir = getenv("TMP");
+        if (!tmpdir || !tmpdir[0]) tmpdir = ".";
+        sprintf(buf, "%s\\bcc_%d_%d.c", tmpdir, getpid_safe(), counter);
+    }
+#else
+    /* C89: use sprintf; buf is 512 bytes, path cannot overflow */
     sprintf(buf, "/tmp/bcc_%d_%d.c", getpid_safe(), counter);
+#endif
 }
 
 /* ------------------------------------------------------------------ */

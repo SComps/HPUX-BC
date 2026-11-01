@@ -6,6 +6,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#if defined(_WIN32) || defined(_WIN64)
+#  include <windows.h>
+#  ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
+#    define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
+#  endif
+#endif
 #include "basic_runtime.h"
 
 static int    s_argc = 0;
@@ -70,6 +76,17 @@ void bs_command(BString *dst, int idx)
  */
 void bs_runtime_init(void)
 {
+#if defined(_WIN32) || defined(_WIN64)
+    {
+        HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (hOut != INVALID_HANDLE_VALUE) {
+            DWORD dwMode = 0;
+            if (GetConsoleMode(hOut, &dwMode)) {
+                SetConsoleMode(hOut, dwMode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+            }
+        }
+    }
+#endif
     srand((unsigned int)time(NULL));
     atexit(bs_runtime_cleanup);
 }

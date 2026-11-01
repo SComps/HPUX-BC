@@ -1,6 +1,6 @@
 # HPUX-BC (`bcc`)
 
-An ANSI C89 QBasic / QuickBASIC 4.5–compatible BASIC-to-C compiler (`bcc`), runtime library (`libbasic.a`), and full-screen VT100/ANSI terminal IDE (`bcc-ide`), originally built for **HP-UX 11i on PA-RISC** and portable across **POSIX / Linux (32-bit & 64-bit)** systems.
+An ANSI C89 QBasic / QuickBASIC 4.5–compatible BASIC-to-C compiler (`bcc`), runtime library (`libbasic.a` / `basic.lib`), and full-screen VT100/ANSI terminal IDE (`bcc-ide`), originally built for **HP-UX 11i on PA-RISC** and portable across **POSIX / Linux (32-bit & 64-bit)** and **Windows (Visual Studio)**.
 
 ## Features
 
@@ -12,11 +12,13 @@ An ANSI C89 QBasic / QuickBASIC 4.5–compatible BASIC-to-C compiler (`bcc`), ru
   - Formatted output with `PRINT USING` and `LPRINT USING` (`lp` / `lpr` spooler integration)
   - Full VT100/ANSI terminal screen control (`CLS`, `LOCATE`, `COLOR`, `BGCOLOR`, `INKEY$`, `TERMCOLS`, `TERMROWS`)
 - **Zero External Dependencies**
-  - Pure ANSI C89 compiler and runtime (`-lm` only; no `ncurses` required)
+  - Pure ANSI C89 compiler and runtime (`-lm` on Unix; standard Win32 Console APIs on Windows; no `ncurses` required)
 - **Self-Hosted Terminal IDE (`bcc-ide`)**
   - Written in BASIC and compiled by `bcc` itself
 
 ## Building & Installing
+
+### HP-UX 11i & Linux / POSIX
 
 Use GNU Make (`gmake` on HP-UX, `make` on Linux):
 
@@ -35,6 +37,23 @@ gmake
 gmake install
 ```
 
+### Windows (Visual Studio / NMAKE)
+
+Open a **x64 Native Tools Command Prompt** (or **Developer PowerShell**) for Visual Studio (e.g., Visual Studio 2022 / 2026) and run:
+
+```bat
+REM Build bcc.exe and basic.lib
+nmake /f Makefile.win
+
+REM Also build the terminal IDE (ide\bcc-ide.exe)
+nmake /f Makefile.win ide
+
+REM Clean build artifacts
+nmake /f Makefile.win clean
+```
+
+> **Note:** When running `bcc.exe` on Windows to compile `.bas` files into `.exe` binaries, run it inside a Visual Studio Developer Command Prompt (so `cl.exe` and the Windows SDK libraries are in your `PATH`/`LIB`), or set `BCCRUNTIME` to the folder containing `basic.lib` and `runtime\basic_runtime.h`.
+
 ## Usage
 
 ```sh
@@ -49,3 +68,4 @@ bcc-ide hello.bas
 ## Documentation
 
 See [**REFERENCE.md**](REFERENCE.md) for the complete language reference, built-in function catalog, compiler flags, and GW-BASIC / QuickBASIC 4.5 compatibility notes.
+

@@ -806,11 +806,18 @@ SUB LoadFile(path AS STRING)
     DIM fnum AS INTEGER
     DIM s    AS STRING
     DIM n    AS INTEGER
+    DIM ok   AS INTEGER
 
-    ' Check file exists using SHELL$
-    DIM check AS STRING
-    check = TRIM$(SHELL$("test -f """ + path + """ && echo yes"))
-    IF check <> "yes" THEN
+    fnum = 1
+    ok = 0
+    TRY
+        OPEN path FOR INPUT AS #fnum
+        ok = 1
+    CATCH e AS STRING
+        ok = 0
+    END TRY
+
+    IF ok = 0 THEN
         CALL SetMsg("File not found: " + path)
         EXIT SUB
     END IF
@@ -818,8 +825,6 @@ SUB LoadFile(path AS STRING)
     CALL InitBuffer
     lineCount = 0
 
-    fnum = 1
-    OPEN path FOR INPUT AS #fnum
     DO WHILE NOT EOF(fnum)
         LINE INPUT #fnum, s
         ' Truncate very long lines
@@ -850,7 +855,8 @@ END SUB
 
 ' DoCompileOnly -- F6: compile and show errors
 SUB DoCompileOnly
-    DIM rc AS INTEGER
+    DIM rc  AS INTEGER
+    DIM os  AS STRING
 
     ' Must save first
     IF modified = 1 OR fileName = "untitled.bas" THEN
@@ -859,8 +865,12 @@ SUB DoCompileOnly
 
     CALL SetMsg("Compiling " + fileName + " ...")
 
-    ' Run bcc; redirect stderr to /tmp/ide_err for ShowErrors to read
-    SHELL "PATH=$PATH:/usr/local/pa11_32/bin:.:.. bcc """ + fileName + """ -o /tmp/ide_bin > /tmp/ide_out 2>/tmp/ide_err"
+    os = TRIM$(SHELL$("echo %OS%"))
+    IF os = "Windows_NT" THEN
+        SHELL "bcc """ + fileName + """ -o ide_bin.exe > ide_out.tmp 2> ide_err.tmp"
+    ELSE
+        SHELL "PATH=$PATH:/usr/local/pa11_32/bin:.:.. bcc """ + fileName + """ -o /tmp/ide_bin > /tmp/ide_out 2>/tmp/ide_err"
+    END IF
     rc = ERRLEVEL
 
     IF rc = 0 THEN
@@ -872,7 +882,8 @@ END SUB
 
 ' DoCompileRun -- F5: compile and run
 SUB DoCompileRun
-    DIM rc AS INTEGER
+    DIM rc  AS INTEGER
+    DIM os  AS STRING
 
     ' Must save first
     IF modified = 1 OR fileName = "untitled.bas" THEN
@@ -881,7 +892,12 @@ SUB DoCompileRun
 
     CALL SetMsg("Compiling " + fileName + " ...")
 
-    SHELL "PATH=$PATH:/usr/local/pa11_32/bin:.:.. bcc """ + fileName + """ -o /tmp/ide_bin > /tmp/ide_out 2>/tmp/ide_err"
+    os = TRIM$(SHELL$("echo %OS%"))
+    IF os = "Windows_NT" THEN
+        SHELL "bcc """ + fileName + """ -o ide_bin.exe > ide_out.tmp 2> ide_err.tmp"
+    ELSE
+        SHELL "PATH=$PATH:/usr/local/pa11_32/bin:.:.. bcc """ + fileName + """ -o /tmp/ide_bin > /tmp/ide_out 2>/tmp/ide_err"
+    END IF
     rc = ERRLEVEL
 
     IF rc <> 0 THEN
@@ -895,7 +911,11 @@ SUB DoCompileRun
     COLOR COL_EDIT_FG
     PRINT "--- Running " + fileName + " ---"
     PRINT ""
-    SHELL "/tmp/ide_bin"
+    IF os = "Windows_NT" THEN
+        SHELL "ide_bin.exe"
+    ELSE
+        SHELL "/tmp/ide_bin"
+    END IF
     PRINT ""
     PRINT "--- Press any key to return to IDE ---"
     DIM k AS STRING
@@ -908,26 +928,39 @@ SUB DoCompileRun
     CALL DrawAll
 END SUB
 
-' ShowErrors -- display compile error list (reads /tmp/ide_err)
+' ShowErrors -- display compile error list (reads /tmp/ide_err or ide_err.tmp)
 SUB ShowErrors
     DIM errLine  AS STRING
     DIM allErr   AS STRING
     DIM fnum     AS INTEGER
     DIM n        AS INTEGER
     DIM i        AS INTEGER
+    DIM errFile  AS STRING
+    DIM os       AS STRING
 
     ' Read up to 10 error lines
     DIM errLines(10) AS STRING   ' up to 10 error lines
     n = 0
 
+    os = TRIM$(SHELL$("echo %OS%"))
+    IF os = "Windows_NT" THEN
+        errFile = "ide_err.tmp"
+    ELSE
+        errFile = "/tmp/ide_err"
+    END IF
+
     fnum = 2
-    OPEN "/tmp/ide_err" FOR INPUT AS #fnum
-    DO WHILE NOT EOF(fnum) AND n < 10
-        LINE INPUT #fnum, errLine
-        n = n + 1
-        errLines(n) = errLine
-    LOOP
-    CLOSE #fnum
+    TRY
+        OPEN errFile FOR INPUT AS #fnum
+        DO WHILE NOT EOF(fnum) AND n < 10
+            LINE INPUT #fnum, errLine
+            n = n + 1
+            errLines(n) = errLine
+        LOOP
+        CLOSE #fnum
+    CATCH e AS STRING
+        n = 0
+    END TRY
 
     IF n = 0 THEN
         CALL SetMsg("Compile failed (no error output)")

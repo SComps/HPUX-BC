@@ -1,11 +1,12 @@
 # Build outputs
 *.o
+*.obj
 *.d
 *.a
+*.lib
+*.exe
 bcc
-bcc.exe
 ide/bcc-ide
-ide/bcc-ide.exe
 config.mk
 
 # Packaging artifacts
@@ -20,3 +21,4 @@ backups/
 *.swp
 .DS_Store
 Thumbs.db
+

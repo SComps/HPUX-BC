@@ -24,6 +24,14 @@
 #include <stdarg.h>
 #if !defined(_WIN32) && !defined(_WIN64)
 #  include <unistd.h>
+#else
+#  include <io.h>
+#  define popen  _popen
+#  define pclose _pclose
+#  define fileno _fileno
+#  define dup    _dup
+#  define dup2   _dup2
+#  define close  _close
 #endif
 #include "basic_runtime.h"
 

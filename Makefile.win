@@ -1,0 +1,51 @@
+# Makefile.win -- Visual Studio NMAKE build file for HPUX-BC on Windows
+#
+# Usage (from a Visual Studio Developer Command Prompt / PowerShell):
+#   nmake /f Makefile.win            # build bcc.exe and basic.lib
+#   nmake /f Makefile.win ide        # also build ide\bcc-ide.exe
+#   nmake /f Makefile.win clean      # remove build artifacts
+
+CC     = cl
+AR     = lib
+CFLAGS = /nologo /O2 /W3 /TC /D_CRT_SECURE_NO_WARNINGS /Iruntime /Icompiler
+
+COMPILER_OBJS = \
+    compiler\main.obj \
+    compiler\lexer.obj \
+    compiler\ast.obj \
+    compiler\parser.obj \
+    compiler\symtab.obj \
+    compiler\typesys.obj \
+    compiler\emitter.obj \
+    compiler\error.obj
+
+RUNTIME_OBJS = \
+    runtime\basic_runtime.obj \
+    runtime\basic_string.obj \
+    runtime\basic_io.obj \
+    runtime\basic_math.obj \
+    runtime\basic_array.obj \
+    runtime\basic_file.obj \
+    runtime\basic_error.obj \
+    runtime\basic_shell.obj \
+    runtime\basic_lprint.obj
+
+all: basic.lib bcc.exe
+
+bcc.exe: $(COMPILER_OBJS)
+	$(CC) /nologo /Febcc.exe $(COMPILER_OBJS)
+
+basic.lib: $(RUNTIME_OBJS)
+	$(AR) /nologo /OUT:basic.lib $(RUNTIME_OBJS)
+
+ide: bcc.exe basic.lib
+	bcc.exe ide\ide.bas -o ide\bcc-ide.exe
+
+{compiler}.c{compiler}.obj:
+	$(CC) $(CFLAGS) /c $< /Fo$@
+
+{runtime}.c{runtime}.obj:
+	$(CC) $(CFLAGS) /c $< /Fo$@
+
+clean:
+	-del /Q compiler\*.obj runtime\*.obj *.obj bcc.exe basic.lib ide\bcc-ide.exe 2>NUL
