@@ -5,6 +5,7 @@
 *.a
 *.lib
 *.exe
+*.tmp
 bcc
 ide/bcc-ide
 config.mk

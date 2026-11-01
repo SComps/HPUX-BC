@@ -67,5 +67,6 @@ bcc-ide hello.bas
 
 ## Documentation
 
-See [**REFERENCE.md**](REFERENCE.md) for the complete language reference, built-in function catalog, compiler flags, and GW-BASIC / QuickBASIC 4.5 compatibility notes.
+- [**Introduction to BASIC (bcc).pdf**](<Introduction to BASIC (bcc).pdf>) — New User Guide & Tutorial
+- [**REFERENCE.md**](REFERENCE.md) — Complete Language Reference, Built-in Function Catalog, Compiler Flags, and GW-BASIC / QuickBASIC 4.5 Compatibility Notes
 

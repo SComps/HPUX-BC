@@ -8,4 +8,5 @@ Makefile.win text eol=lf
 *.bas text eol=lf
 *.psf text eol=lf
 *.md text eol=lf
+*.pdf binary
 
