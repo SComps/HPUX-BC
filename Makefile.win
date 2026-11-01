@@ -8,6 +8,7 @@
 CC     = cl
 AR     = lib
 CFLAGS = /nologo /O2 /W3 /TC /D_CRT_SECURE_NO_WARNINGS /Iruntime /Icompiler
+PREFIX = C:\hpux-bc
 
 COMPILER_OBJS = \
     compiler\main.obj \
@@ -46,6 +47,14 @@ ide: bcc.exe basic.lib
 
 {runtime}.c{runtime}.obj:
 	$(CC) $(CFLAGS) /c $< /Fo$@
+
+install: all
+	@if not exist "$(PREFIX)" mkdir "$(PREFIX)"
+	copy /Y bcc.exe "$(PREFIX)\bcc.exe" >NUL
+	copy /Y basic.lib "$(PREFIX)\basic.lib" >NUL
+	copy /Y runtime\basic_runtime.h "$(PREFIX)\basic_runtime.h" >NUL
+	@if exist ide\bcc-ide.exe copy /Y ide\bcc-ide.exe "$(PREFIX)\bcc-ide.exe" >NUL
+	@echo Installed bcc.exe, basic.lib, and basic_runtime.h to $(PREFIX)
 
 clean:
 	-del /Q compiler\*.obj runtime\*.obj *.obj bcc.exe basic.lib ide\bcc-ide.exe 2>NUL

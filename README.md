@@ -48,11 +48,14 @@ nmake /f Makefile.win
 REM Also build the terminal IDE (ide\bcc-ide.exe)
 nmake /f Makefile.win ide
 
+REM Optional: install bcc.exe, basic.lib, basic_runtime.h, and bcc-ide.exe (default: C:\hpux-bc)
+nmake /f Makefile.win install PREFIX=C:\hpux-bc
+
 REM Clean build artifacts
 nmake /f Makefile.win clean
 ```
 
-> **Note:** When running `bcc.exe` on Windows to compile `.bas` files into `.exe` binaries, run it inside a Visual Studio Developer Command Prompt (so `cl.exe` and the Windows SDK libraries are in your `PATH`/`LIB`), or set `BCCRUNTIME` to the folder containing `basic.lib` and `runtime\basic_runtime.h`.
+> **Note:** On Windows, `bcc.exe` automatically locates its runtime files (`basic.lib` and `basic_runtime.h`) relative to `bcc.exe`'s own directory (`GetModuleFileNameA`), and automatically initializes Visual Studio's `vcvars64.bat` if invoked from a standard Command Prompt or PowerShell window.
 
 ## Usage
 

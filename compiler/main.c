@@ -11,6 +11,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(_WIN32) || defined(_WIN64)
+#  include <process.h>
+__declspec(dllimport) unsigned long __stdcall GetModuleFileNameA(
+    void *hModule, char *lpFilename, unsigned long nSize);
+#endif
 
 #include "error.h"
 #include "lexer.h"
@@ -202,6 +207,31 @@ static void dump_tokens(const char *filename, const char *src)
  *
  * The result is copied into BUF (up to BUFLEN-1 chars).
  */
+static void strip_trailing_sep(char *buf)
+{
+    size_t len = strlen(buf);
+    while (len > 1 && (buf[len - 1] == '/' || buf[len - 1] == '\\')) {
+        if (len == 3 && buf[1] == ':') break; /* keep "C:\" root */
+        buf[--len] = '\0';
+    }
+}
+
+#if defined(_WIN32) || defined(_WIN64)
+static int dir_has_win_runtime(const char *dir)
+{
+    char path[512];
+    FILE *f;
+    if (!dir || !dir[0] || strlen(dir) + 16 >= sizeof(path)) return 0;
+    sprintf(path, "%s\\basic.lib", dir);
+    f = fopen(path, "rb");
+    if (f) {
+        fclose(f);
+        return 1;
+    }
+    return 0;
+}
+#endif
+
 static void get_runtime_dir(const char *argv0, char *buf, size_t buflen)
 {
     const char *env = getenv("BCCRUNTIME");
@@ -211,8 +241,41 @@ static void get_runtime_dir(const char *argv0, char *buf, size_t buflen)
     if (env && env[0]) {
         strncpy(buf, env, buflen - 1);
         buf[buflen - 1] = '\0';
+        strip_trailing_sep(buf);
         return;
     }
+
+#if defined(_WIN32) || defined(_WIN64)
+    {
+        char exe_path[512];
+        char exe_dir[512];
+        unsigned long n = GetModuleFileNameA(NULL, exe_path, (unsigned long)sizeof(exe_path));
+        if (n > 0 && n < (unsigned long)sizeof(exe_path)) {
+            my_dirname(exe_path, exe_dir, sizeof(exe_dir));
+            strip_trailing_sep(exe_dir);
+            if (dir_has_win_runtime(exe_dir)) {
+                strncpy(buf, exe_dir, buflen - 1);
+                buf[buflen - 1] = '\0';
+                return;
+            }
+        }
+        if (dir_has_win_runtime(".")) {
+            strncpy(buf, ".", buflen - 1);
+            buf[buflen - 1] = '\0';
+            return;
+        }
+        if (dir_has_win_runtime("..")) {
+            strncpy(buf, "..", buflen - 1);
+            buf[buflen - 1] = '\0';
+            return;
+        }
+        if (n > 0 && n < (unsigned long)sizeof(exe_path)) {
+            strncpy(buf, exe_dir, buflen - 1);
+            buf[buflen - 1] = '\0';
+            return;
+        }
+    }
+#endif
 
     if (argv0) {
         for (p = argv0; *p; p++) {
@@ -225,6 +288,7 @@ static void get_runtime_dir(const char *argv0, char *buf, size_t buflen)
 
     if (has_sep) {
         my_dirname(argv0, buf, buflen);
+        strip_trailing_sep(buf);
         return;
     }
 
@@ -263,6 +327,64 @@ static void get_runtime_dir(const char *argv0, char *buf, size_t buflen)
  *
  * Returns 0 on success, non-zero on failure.
  */
+#if defined(_WIN32) || defined(_WIN64)
+static const char *find_vcvars64(void)
+{
+    static char vcvars_path[512] = "";
+    static int  searched = 0;
+    static const char * const candidates[] = {
+        "C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat",
+        "C:\\Program Files\\Microsoft Visual Studio\\18\\Professional\\VC\\Auxiliary\\Build\\vcvars64.bat",
+        "C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise\\VC\\Auxiliary\\Build\\vcvars64.bat",
+        "C:\\Program Files\\Microsoft Visual Studio\\18\\BuildTools\\VC\\Auxiliary\\Build\\vcvars64.bat",
+        "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat",
+        "C:\\Program Files\\Microsoft Visual Studio\\2022\\Professional\\VC\\Auxiliary\\Build\\vcvars64.bat",
+        "C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Auxiliary\\Build\\vcvars64.bat",
+        "C:\\Program Files\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Auxiliary\\Build\\vcvars64.bat",
+        NULL
+    };
+    int i;
+    FILE *f;
+
+    if (searched) return vcvars_path[0] ? vcvars_path : NULL;
+    searched = 1;
+
+    for (i = 0; candidates[i] != NULL; i++) {
+        f = fopen(candidates[i], "rb");
+        if (f) {
+            fclose(f);
+            strncpy(vcvars_path, candidates[i], sizeof(vcvars_path) - 1);
+            vcvars_path[sizeof(vcvars_path) - 1] = '\0';
+            return vcvars_path;
+        }
+    }
+
+    /* Fallback: query vswhere.exe */
+    f = _popen("\"C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\vswhere.exe\" -latest -property installationPath 2>NUL", "r");
+    if (f) {
+        char line[384];
+        if (fgets(line, (int)sizeof(line), f)) {
+            size_t len = strlen(line);
+            while (len > 0 && (line[len - 1] == '\r' || line[len - 1] == '\n'))
+                line[--len] = '\0';
+            if (len > 0 && len + 45 < sizeof(vcvars_path)) {
+                FILE *vf;
+                sprintf(vcvars_path, "%s\\VC\\Auxiliary\\Build\\vcvars64.bat", line);
+                vf = fopen(vcvars_path, "rb");
+                if (vf) {
+                    fclose(vf);
+                    _pclose(f);
+                    return vcvars_path;
+                }
+                vcvars_path[0] = '\0';
+            }
+        }
+        _pclose(f);
+    }
+    return NULL;
+}
+#endif
+
 static int invoke_gcc(
         const char *cfile,
         const char *outname,
@@ -291,6 +413,18 @@ static int invoke_gcc(
         if (!bcc_cc || strstr(bcc_cc, "gcc") == NULL) {
             /* MSVC cl.exe mode */
             char obj_file[256];
+            char log_file[512];
+            const char *vcvars = NULL;
+            int need_vcvars = (getenv("VCToolsInstallDir") == NULL);
+            if (need_vcvars) {
+                vcvars = find_vcvars64();
+            }
+            sprintf(log_file, "%s.log", cfile);
+            if (vcvars) {
+                APPEND("cmd /s /c \"\"");
+                APPEND(vcvars);
+                APPEND("\" >NUL && ");
+            }
             APPEND("cl /nologo /W0 /TC /D_CRT_SECURE_NO_WARNINGS ");
             if (strcmp(opt_flag, "-O0") == 0)
                 APPEND("/Od ");
@@ -319,8 +453,14 @@ static int invoke_gcc(
             APPEND("\" /LIBPATH:\"");
             APPEND(rtdir);
             APPEND("\\..\\lib\" basic.lib");
-            if (!verbose)
-                APPEND(" >NUL");
+            if (!verbose) {
+                APPEND(" > \"");
+                APPEND(log_file);
+                APPEND("\" 2>&1");
+            }
+            if (vcvars) {
+                APPEND("\"");
+            }
             cmd[pos] = '\0';
 
             if (verbose)
@@ -334,8 +474,20 @@ static int invoke_gcc(
             strncat(obj_file, ".obj", sizeof(obj_file) - strlen(obj_file) - 1);
             remove(obj_file);
 
-            if (rc != 0)
+            if (rc != 0) {
+                if (!verbose) {
+                    FILE *lf = fopen(log_file, "r");
+                    if (lf) {
+                        char lbuf[256];
+                        while (fgets(lbuf, (int)sizeof(lbuf), lf))
+                            fputs(lbuf, stderr);
+                        fclose(lf);
+                    }
+                }
                 fprintf(stderr, "bcc: cl failed (exit %d)\n", rc);
+            }
+            if (!verbose)
+                remove(log_file);
             return rc;
         }
     }
@@ -385,7 +537,6 @@ static int invoke_gcc(
 /* ------------------------------------------------------------------ */
 
 #if defined(_WIN32) || defined(_WIN64)
-#include <process.h>
 static int getpid_safe(void) { return (int)_getpid(); }
 #else
 #include <unistd.h>
