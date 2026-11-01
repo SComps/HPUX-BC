@@ -835,6 +835,7 @@ static AstNode *parse_assign_or_call(Parser *p)
             /* Collect optional argument list (comma-separated, no parens) */
             if (peek(p)->type != TOK_NEWLINE &&
                 peek(p)->type != TOK_COLON   &&
+                peek(p)->type != TOK_ELSE    &&
                 peek(p)->type != TOK_EOF) {
                 arg = parse_expr(p);
                 if (arg) { args = arg; tail = arg; }
@@ -1590,6 +1591,7 @@ static AstNode *parse_print(Parser *p)
     /* Print items */
     while (peek(p)->type != TOK_NEWLINE &&
            peek(p)->type != TOK_COLON   &&
+           peek(p)->type != TOK_ELSE    &&
            peek(p)->type != TOK_EOF) {
         AstNode *item;
         /* Separator tokens are part of the item list: we include them as
@@ -1605,6 +1607,7 @@ static AstNode *parse_print(Parser *p)
             token_free(advance(p));
         } else {
             item = parse_expr(p);
+            if (!item) break;
         }
         if (item) {
             if (!items) { items = item; itail = item; }
@@ -1674,6 +1677,7 @@ static AstNode *parse_lprint(Parser *p)
     /* Print items (same logic as PRINT) */
     while (peek(p)->type != TOK_NEWLINE &&
            peek(p)->type != TOK_COLON   &&
+           peek(p)->type != TOK_ELSE    &&
            peek(p)->type != TOK_EOF) {
         AstNode *item;
         if (peek(p)->type == TOK_SEMICOLON) {
@@ -1686,6 +1690,7 @@ static AstNode *parse_lprint(Parser *p)
             token_free(advance(p));
         } else {
             item = parse_expr(p);
+            if (!item) break;
         }
         if (item) {
             if (!items) { items = item; itail = item; }

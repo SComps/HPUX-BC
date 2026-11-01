@@ -357,6 +357,7 @@ static void pre_scan(TypeSys *t, AstNode *block)
             sym->params       = node->u.sub_def.params;
             sym->ret_type     = node->u.sub_def.ret_type;
             sym->ret_type_idx = node->u.sub_def.ret_type_idx;
+            sym->type_idx     = node->u.sub_def.ret_type_idx;
 
             if (symtab_insert(t->st, sym) != 0) symbol_free(sym);
         }
@@ -711,16 +712,11 @@ static void walk_node(TypeSys *t, AstNode *node)
                 if (symtab_insert(t->st, psym) != 0) symbol_free(psym);
             }
 
-            /* For FUNCTION, also insert the function name as a local
-               variable so that assignments to it set the return value */
-            if (cur->kind == ND_FUNC_DEF && uname) {
-                Symbol *rsym = make_symbol(uname, SK_VAR,
-                                           cur->u.sub_def.ret_type);
-                if (rsym) {
-                    rsym->type_idx = cur->u.sub_def.ret_type_idx;
-                    if (symtab_insert(t->st, rsym) != 0) symbol_free(rsym);
-                }
-            }
+            /* Note: Do NOT insert a local SK_VAR with the function's name,
+               because that would shadow the global SK_FUNCTION symbol and
+               break recursive calls (e.g. Factorial(n - 1)).  The global
+               SK_FUNCTION symbol already carries sym->type == ret_type so
+               LHS return-value assignments (Factorial = 1) resolve cleanly. */
 
             walk_node(t, cur->u.sub_def.body);
             symtab_pop_scope(t->st);

@@ -1907,16 +1907,17 @@ static void emit_try(Emitter *e, const AstNode *n)
     emit_close(e);
     emit_line(e, "else");
     emit_open(e);
-    emit_line(e, "bs_error_pop();");
     if (n->u.try_stmt.catch_var) {
         const char *cv = vname(
             n->u.try_stmt.catch_var->kind == ND_VAR
             ? n->u.try_stmt.catch_var->u.var.name : "err");
         emit_line(e, "BString %s = {NULL, 0, 0};", cv);
+        emit_line(e, "bs_error_pop();");
         emit_line(e, "bs_err_msg(&%s);", cv);
         emit_block(e, n->u.try_stmt.catch_body);
         emit_line(e, "bs_free(&%s);", cv);
     } else {
+        emit_line(e, "bs_error_pop();");
         emit_block(e, n->u.try_stmt.catch_body);
     }
     emit_close(e);
@@ -2708,6 +2709,15 @@ static void collect_dim_names(const AstNode *block, ImplSeen *seen)
             for (c = s->u.select_stmt.cases; c; c = c->next) {
                 collect_dim_names(c->u.if_stmt.then_block, seen);
             }
+        } else if (s->kind == ND_TRY) {
+            if (s->u.try_stmt.catch_var && s->u.try_stmt.catch_var->kind == ND_VAR) {
+                char mn[128];
+                mangle_name(s->u.try_stmt.catch_var->u.var.name, mn, (int)sizeof(mn));
+                impl_seen(seen, mn);
+            }
+            collect_dim_names(s->u.try_stmt.body, seen);
+            collect_dim_names(s->u.try_stmt.catch_body, seen);
+            collect_dim_names(s->u.try_stmt.finally_body, seen);
         }
     }
 }
@@ -2805,6 +2815,10 @@ static void emit_local_dim_decls(Emitter *e, const AstNode *block, ImplSeen *dim
             const AstNode *c;
             for (c = s->u.select_stmt.cases; c; c = c->next)
                 emit_local_dim_decls(e, c->u.if_stmt.then_block, dim_seen);
+        } else if (s->kind == ND_TRY) {
+            emit_local_dim_decls(e, s->u.try_stmt.body, dim_seen);
+            emit_local_dim_decls(e, s->u.try_stmt.catch_body, dim_seen);
+            emit_local_dim_decls(e, s->u.try_stmt.finally_body, dim_seen);
         }
     }
 }
@@ -2969,6 +2983,16 @@ static void emit_implicit_decls(Emitter *e, const AstNode *block, ImplSeen *seen
                 break;
             case ND_BGCOLOR:
                 scan_expr_vars(e, s->u.color.bg, seen);
+                break;
+            case ND_TRY:
+                if (s->u.try_stmt.catch_var && s->u.try_stmt.catch_var->kind == ND_VAR) {
+                    char mn[128];
+                    mangle_name(s->u.try_stmt.catch_var->u.var.name, mn, (int)sizeof(mn));
+                    impl_seen(seen, mn);
+                }
+                emit_implicit_decls(e, s->u.try_stmt.body, seen);
+                emit_implicit_decls(e, s->u.try_stmt.catch_body, seen);
+                emit_implicit_decls(e, s->u.try_stmt.finally_body, seen);
                 break;
             default: break;
         }
