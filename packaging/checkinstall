@@ -1,0 +1,59 @@
+#!/bin/sh
+# checkinstall -- SD-UX pre-installation dependency check for HPUX-BC
+#
+# SD-UX return codes:
+#   0 = Success
+#   1 = Error (abort install)
+#   2 = Warning (allow install with warning in swinstall log)
+
+RETVAL=0
+
+# 1. Check for gcc
+GCC_FOUND=""
+for p in \
+    /usr/local/pa11_32/bin/gcc \
+    /usr/local/pa20_32/bin/gcc \
+    /usr/local/bin/gcc \
+    /opt/gcc42/bin/gcc \
+    /opt/gcc/bin/gcc \
+    /usr/contrib/bin/gcc
+do
+    if [ -x "$p" ]; then
+        GCC_FOUND="$p"
+        break
+    fi
+done
+
+if [ -z "$GCC_FOUND" ]; then
+    echo "WARNING: gcc was not found in standard HP-UX locations (/usr/local/pa11_32/bin/gcc, /usr/local/bin/gcc)."
+    echo "         HPUX-BC requires gcc (4.2+) at compile time."
+    RETVAL=2
+else
+    echo "NOTE: Found gcc at $GCC_FOUND"
+fi
+
+# 2. Check for ncurses library
+NCURSES_FOUND=""
+for d in \
+    /usr/local/pa11_32/lib \
+    /usr/local/pa20_32/lib \
+    /usr/local/lib \
+    /opt/ncurses/lib \
+    /usr/lib
+do
+    if [ -f "$d/libncurses.sl" ] || [ -f "$d/libncurses.a" ] || [ -f "$d/libncurses.so" ]; then
+        NCURSES_FOUND="$d"
+        break
+    fi
+done
+
+if [ -z "$NCURSES_FOUND" ]; then
+    echo "WARNING: libncurses was not found in /usr/local/pa11_32/lib or /usr/local/lib."
+    echo "         HPUX-BC requires the ncurses depot at link/run time."
+    RETVAL=2
+else
+    echo "NOTE: Found ncurses library in $NCURSES_FOUND"
+fi
+
+exit $RETVAL
+

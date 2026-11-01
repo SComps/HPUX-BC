@@ -1,0 +1,22 @@
+# Build outputs
+*.o
+*.d
+*.a
+bcc
+bcc.exe
+ide/bcc-ide
+ide/bcc-ide.exe
+config.mk
+
+# Packaging artifacts
+*.depot
+*.tar.gz
+packaging/hpux-bc.psf.gen
+packaging/stage/
+
+# Local backups and editor files
+backups/
+*~
+*.swp
+.DS_Store
+Thumbs.db

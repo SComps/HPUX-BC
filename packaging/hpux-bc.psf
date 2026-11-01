@@ -1,0 +1,66 @@
+# hpux-bc.psf -- HP-UX Software Distributor (SD-UX) Product Specification File
+#
+# Build a single-file (.depot) package with:
+#   /usr/sbin/swpackage -s packaging/hpux-bc.psf -x media_type=tape @ hpux-bc-1.0.depot
+# Or via gmake:
+#   gmake depot
+
+depot
+  layout_version 1.0
+
+vendor
+  tag            ScottJ
+  title          HP-UX BASIC Compiler Project
+  description    HP-UX BASIC Compiler (bcc), Runtime Library, and Full-Screen IDE
+end
+
+product
+  tag            HPUX-BC
+  revision       1.0
+  architecture   HP-UX_B.11.11_32/64
+  vendor_tag     ScottJ
+  title          HP-UX BASIC Compiler and IDE
+  description    QBasic/QuickBASIC-compatible BASIC compiler (bcc), C89 runtime library (libbasic.a), and terminal IDE (bcc-ide) for HP-UX 11i PA-RISC.
+  os_name        HP-UX
+  os_release     ?.11.*
+  os_version     *
+  machine_type   9000/[678]*
+  directory      /usr/local/pa11_32
+  is_locatable   true
+  checkinstall   packaging/checkinstall
+
+  fileset
+    tag            BCC-RUN
+    title          HP-UX BASIC Compiler (bcc) and Runtime Library (libbasic.a)
+    revision       1.0
+    description    Compiler driver (bcc), static runtime library (libbasic.a), and C header (basic_runtime.h)
+    prerequisites  gcc
+    prerequisites  ncurses
+
+    file -m 0755 -o root -g sys bcc                     /usr/local/pa11_32/bin/bcc
+    file -m 0644 -o root -g sys libbasic.a              /usr/local/pa11_32/lib/libbasic.a
+    file -m 0644 -o root -g sys runtime/basic_runtime.h /usr/local/pa11_32/include/basic_runtime.h
+  end
+
+  fileset
+    tag            BCC-IDE
+    title          HP-UX BASIC Integrated Development Environment (bcc-ide)
+    revision       1.0
+    description    Full-screen terminal BASIC IDE and source code
+    prerequisites  HPUX-BC.BCC-RUN
+    prerequisites  ncurses
+
+    file -m 0755 -o root -g sys ide/bcc-ide             /usr/local/pa11_32/bin/bcc-ide
+    file -m 0644 -o root -g sys ide/ide.bas             /usr/local/pa11_32/share/hpux-bc/ide.bas
+  end
+
+  fileset
+    tag            BCC-DOC
+    title          HP-UX BASIC Reference Manual
+    revision       1.0
+    description    Language Reference and Documentation for HPUX-BC
+
+    file -m 0644 -o root -g sys REFERENCE.md            /usr/local/pa11_32/share/doc/hpux-bc/REFERENCE.md
+  end
+end
+
