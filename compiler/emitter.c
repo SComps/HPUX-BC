@@ -880,7 +880,7 @@ static void emit_func_call_expr(Emitter *e, const AstNode *n)
 
         if (ret_is_str) {
             int uid = new_uid(e);
-            fprintf(e->out, "(%s(&__bas_strpool[%d %% __BAS_STRPOOL]",
+            fprintf(e->out, "(*(%s(&__bas_strpool[%d %% __BAS_STRPOOL]",
                     func_name(name), uid);
             for (a = arg; a != NULL; a = a->next) {
                 fprintf(e->out, ", ");
@@ -898,7 +898,7 @@ static void emit_func_call_expr(Emitter *e, const AstNode *n)
                 }
                 if (param) param = param->next;
             }
-            fprintf(e->out, "), __bas_strpool[%d %% __BAS_STRPOOL])", uid);
+            fprintf(e->out, "), &__bas_strpool[%d %% __BAS_STRPOOL]))", uid);
         } else {
             fprintf(e->out, "%s(", func_name(name));
             for (a = arg; a != NULL; a = a->next) {
