@@ -23,11 +23,13 @@ An ANSI C89 QBasic / QuickBASIC 4.5–compatible BASIC-to-C compiler (`bcc`), ru
 Use GNU Make (`gmake` on HP-UX, `make` on Linux):
 
 ```sh
-./configure
+./configure --prefix=/your/path
 gmake
 gmake check
 gmake install
 ```
+
+your path might be /usr/local
 
 To build and install the terminal IDE (`bcc-ide`):
 
