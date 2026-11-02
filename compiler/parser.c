@@ -1264,6 +1264,7 @@ static ParamDef *parse_param_list(Parser *p)
 
         /* Optional AS type */
         parse_type_tag(p, &btype, &tidx);
+        if (btype == BT_USER) is_byref = 1;
 
         pd = make_param(pname, btype, is_byref);
         free(pname);
@@ -1851,8 +1852,8 @@ static AstNode *parse_open(Parser *p)
     if (peek(p)->type == TOK_SIGIL_DOUBLE) token_free(advance(p));
     filenum_expr = parse_expr(p);
 
-    if (peek(p)->type == TOK_IDENT &&
-        strcmp(peek(p)->text, "LEN") == 0) {
+    if (peek(p)->type == TOK_LEN ||
+        (peek(p)->type == TOK_IDENT && strcmp(peek(p)->text, "LEN") == 0)) {
         token_free(advance(p));
         token_free(expect(p, TOK_EQ));
         reclen_expr = parse_expr(p);

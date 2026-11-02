@@ -499,9 +499,13 @@ static void emit_func_call_expr(Emitter *e, const AstNode *n)
         }
     }
 
-    /* Built-in string functions */
+    /* Built-in string / size functions */
     if (strcmp(mn, "len") == 0) {
-        fprintf(e->out, "bs_len(&("); emit_expr(e, arg); fprintf(e->out, "))");
+        if (arg && arg->resolved_type != BT_STRING && arg->kind != ND_STRING_LIT) {
+            fprintf(e->out, "((int)sizeof("); emit_expr(e, arg); fprintf(e->out, "))");
+        } else {
+            fprintf(e->out, "bs_len(&("); emit_expr(e, arg); fprintf(e->out, "))");
+        }
         return;
     }
     if (strcmp(mn, "asc") == 0) {
@@ -2542,11 +2546,7 @@ static void emit_param_list(Emitter *e, const ParamDef *p)
         if (!first) fprintf(e->out, ", ");
         first = 0;
 
-        if (p->type == BT_USER) {
-            ct = type_name(p->name);  /* approximate: use type_idx lookup ideally */
-        } else {
-            ct = ctype_of(p->type, p->type_idx, NULL);
-        }
+        ct = ctype_of(p->type, p->type_idx, NULL);
 
         if (p->is_array) {
             /* Array parameter — pass as BArray* */
@@ -2618,11 +2618,7 @@ static void emit_fwd_decl_sub(Emitter *e, const AstNode *n)
 static void emit_fwd_decl_func(Emitter *e, const AstNode *n)
 {
     const char *ct;
-    if (n->u.sub_def.ret_type == BT_USER) {
-        ct = type_name(n->u.sub_def.name); /* placeholder */
-    } else {
-        ct = ctype_of(n->u.sub_def.ret_type, n->u.sub_def.ret_type_idx, NULL);
-    }
+    ct = ctype_of(n->u.sub_def.ret_type, n->u.sub_def.ret_type_idx, NULL);
     if (n->u.sub_def.ret_type == BT_STRING) {
         /* Functions returning BString return it by pointer via out-param */
         fprintf(e->out, "static void %s", func_name(n->u.sub_def.name));
